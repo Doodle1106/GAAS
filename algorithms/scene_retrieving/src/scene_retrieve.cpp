@@ -1,5 +1,6 @@
 #include "scene_retrieve.h"
 
+
 /*SceneRetriever::SceneRetriever(Scene& original_scene_input)
 {
     this->original_scene=original_scene;
@@ -216,7 +217,7 @@ SceneRetriever::SceneRetriever(const string& voc)
 {
     this->original_scene = Scene();
     this->ploop_closing_manager_of_scene = shared_ptr<LoopClosingManager>(new LoopClosingManager(voc));
-    this->mpCv_helper = shared_ptr<cv_helper>(new cv_helper(360.0652, 363.2195, 406.6650, 256.2053, 39.9554));
+    this->mpCv_helper = shared_ptr<cv_helper>(new cv_helper(376.0, 376.0, 376.0, 240.0, 45.12));
     this->mpCv_helper->setMask("mask.png");
 
     this->_init_retriever();
@@ -226,17 +227,18 @@ SceneRetriever::SceneRetriever(const string& voc)
 SceneRetriever::SceneRetriever(const string& voc,const string& scene_file)
 {
     this->original_scene.loadFile(scene_file);
-//    this->ploop_closing_manager_of_scene = new LoopClosingManager(voc);
     this->ploop_closing_manager_of_scene = shared_ptr<LoopClosingManager>(new LoopClosingManager(voc));
 
-//    mpCv_helper = new cv_helper(360.0652, 363.2195, 406.6650, 256.2053, 39.9554);
-
-    this->mpCv_helper = shared_ptr<cv_helper>(new cv_helper(360.0652, 363.2195, 406.6650, 256.2053, 39.9554));
+    this->mpCv_helper = shared_ptr<cv_helper>(new cv_helper(376.0, 376.0, 376.0, 240.0, 45.12));
     this->mpCv_helper->setMask("mask.png");
 
     this->_init_retriever();
 
     this->publishPoseHistory();
+
+  OLD_T.open ("OLD_T.txt");
+  RELATIVE_T.open ("RELATIVE_T.txt");
+  ALL_T.open("ALL_T.txt");
 }
 
 
@@ -255,13 +257,10 @@ void SceneRetriever::_init_retriever()
         pfr->keypoints = p2d[frame_index];
         pfr->descriptors = this->original_scene.getDespByIndex(frame_index);
 
-
         cout<<"pfr->keypoints size: "<<pfr->keypoints.size()<<endl;
         cout<<"pfr->descriptors size: "<<pfr->descriptors.size()<<endl;
 
-
         ptr_frameinfo frame_info(pfr);
-        
         this->ploop_closing_manager_of_scene->addKeyFrame(frame_info);
     }
 
@@ -339,7 +338,7 @@ void SceneRetriever::displayFeatureMatches(size_t loop_index, ptr_frameinfo& cur
 
 
 float SceneRetriever::retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv::Mat& image_right_rect,
-                                                 cv::Mat& Q_mat, cv::Mat& RT_mat_of_stereo_cam_output, bool& match_success,int* pMatchedIndexID_output)
+                                                   cv::Mat& Q_mat, cv::Mat& RT_mat_of_stereo_cam_output, bool& match_success, int* pMatchedIndexID_output)
 {
     this->LoopClosureDebugIndex ++;
 
@@ -351,50 +350,31 @@ float SceneRetriever::retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv:
         return -1;
     }
 
-    // apply mask to input image
-    mpCv_helper->applyMask(image_right_rect);
-    mpCv_helper->applyMask(image_left_rect);
-    
-//    cv::imshow("left image", image_left_rect);
-//    cv::waitKey(5);
-
     this->mCurrentImage = image_left_rect;
 
-    //<1>-(1) match left image with scene.
+    //match left image with scene.
     std::vector<cv::DMatch> good_matches_output;
     ptr_frameinfo frameinfo_left = this->ploop_closing_manager_of_scene->extractFeature(image_left_rect);
 
     int loop_index= this->ploop_closing_manager_of_scene->detectLoopByKeyFrame(frameinfo_left, good_matches_output, true);
-
     cout<<"Loop Index: "<<loop_index<<endl;
     if(loop_index<0)
     {
         //frame match failed.
         match_success = false;
-        return -1;
+        return -1.0;
     }
 
-    //NOTE display feature matches between current frame and detected old frame
-    cout << "good_matches_output: " << good_matches_output.size() << endl;
 
     //step 1, fetch current frame camera points and desps
-
-    cout<<"icp fetch current frame camera points and desps"<<endl;
-
     vector<cv::KeyPoint> current_kps_left;
     vector<cv::Point3f> current_camera_pts;
     cv::Mat current_frame_desps;
     if(!mpCv_helper->StereoImage2CamPoints(image_left_rect, image_right_rect, current_kps_left, current_camera_pts, current_frame_desps))
     {
         match_success = false;
-        return -1;
+        return -1.0;
     }
-
-    cout<<"icp fetch old frame camera points and desps"<<endl;
-
-    //step 2, fetch old frame camera points and desps
-    cv::Mat old_image_left = this->fetchImage(loop_index, 1);
-    cv::Mat old_image_right = this->fetchImage(loop_index, 0);
 
     // ------------------------------------------------------------------------------------------------------------------------------------
     // NOTE real time computed elements
@@ -417,33 +397,20 @@ float SceneRetriever::retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv:
     cout<<"old_camera_pts_3d size: "<<old_camera_pts_3d.size()<<endl;
     cout<<"old_frame_desps size: "<<old_frame_desps.size()<<endl;
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
-    /*
-    vector<cv::KeyPoint> old_kps_left;
-    vector<cv::Point3f> old_camera_pts;
-    cv::Mat old_frame_desps;
-    cout<<"old_image_left size: "<<old_image_left.size()<<endl;
-    if(!mpCv_helper->StereoImage2CamPoints(old_image_left, old_image_right, old_kps_left, old_camera_pts, old_frame_desps))
-    {
-        match_success = false;
-        return -1;
-    }
-    */
-
     //step 3, match current and old features
     vector<cv::DMatch> result_matches;
     mpCv_helper->match2Images(current_kps_left, current_frame_desps,
                               old_kps_left, old_frame_desps,
                               result_matches);
 
-    cout<<"icp match current and old features"<<endl;
 
     //step 4, if few matches, return false
-    if(result_matches.size() < 20)
+    if(result_matches.size() <= 20)
     {
         match_success = false;
         return -1;
     }
+
 
     //step 5, update matched feature points and camera points
     vector<cv::KeyPoint> matched_current_kps, matched_old_kps;
@@ -457,28 +424,22 @@ float SceneRetriever::retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv:
         matched_old_cam_pts.push_back(old_camera_pts[result_matches[i].trainIdx]);
     }
 
-    cout<<"icp displayFeatureMatches"<<endl;
-
     //step 6, now that we have matched camera points we can conduct ICP, we can use either PCL method or opencv method
-    this->displayFeatureMatches(image_left_rect, current_kps_left,
-                                old_image_left, old_kps_left,
-                                result_matches, loop_index);
+    //    this->displayFeatureMatches(image_left_rect, current_kps_left,
+    //                                old_image_left, old_kps_left,
+    //                                result_matches, loop_index);
 
-    cout<<"icp GeneralICP and std::to_string(this->LoopClosureDebugIndex): "<<std::to_string(this->LoopClosureDebugIndex)<<endl;
 
     Eigen::Matrix4f result;
     float fitnesscore = mpCv_helper->GeneralICP(matched_current_cam_pts, matched_old_cam_pts, result);
 
-    if(fitnesscore > 100)
+    if(fitnesscore == -1)
     {
-      //[MERGE_ERROR]What about match_success value????? LEAVE THIS COMPILE ERROR FOR YOU.
-      match_success = false;//IS THIS CORRECT????
+      match_success = false;
       return fitnesscore;
     }
 
     cout<<"get fitness score: "<<fitnesscore<<endl;
-    //int result_size = mpCv_helper->GeneralICP(matched_current_cam_pts, matched_old_cam_pts, result);
-
     cout<<"icp given old T and relative loop closure T, get new T"<<endl;
     cout<<"Calculated transform matrix is: \n"<<result<<endl;
 
@@ -490,7 +451,7 @@ float SceneRetriever::retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv:
 
 
     //step 8, given old left image and current left image, compute relative R vec from rodrigues by essential mat
-    if(current_kps_left.size() < 30 && old_kps_left.size() < 30)
+    if(current_kps_left.size() < 15 && old_kps_left.size() < 15)
     {
         match_success = false;//[MERGE_ERROR] is this correct??
         return -1;
@@ -504,10 +465,10 @@ float SceneRetriever::retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv:
     cout<<"essentialRvec: "<<essentialRvec<<endl;
     cout<<"RrelativeVec: "<<RrelativeVec<<endl;
 
-    float distanceR = mpCv_helper->Vec3Distance(essentialRvec, RrelativeVec);
-
-    if(distanceR>0.3)
-        return -1;
+//    float distanceR = mpCv_helper->Vec3Distance(essentialRvec, RrelativeVec);
+//
+//    if(distanceR>1.0)
+//        return -1;
 
 
     //step 10, if R vector distance is small enough , consider as inlier and continue to the next step
@@ -536,20 +497,54 @@ float SceneRetriever::retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv:
 
     old_T.at<double>(3, 3) = 1.0;
 
-    cout<<"old T:\n"<<old_T<<endl;
-
     cv::Mat new_T;
 
     result_relative_T.convertTo(result_relative_T, CV_64F);
 
-    new_T = old_T * result_relative_T;
+    // old_T : Transformation from old body to wolrd
+    // result_relative_T: Transformation from current body to old body
+    // current body to world Transform:
+
+    //new_T = old_T * result_relative_T;
+    //cv::Mat transpose_mat;
+    //cv::Transpose(result_relative_T, transpose_mat);
+
+    //convert relative_T from cv image frame to NWU frame
+    cv::Mat opticalframe_to_NWU = cv::Mat::zeros(4,4, CV_64FC1);
+    opticalframe_to_NWU.at<double>(0, 0) = 1.0;
+    opticalframe_to_NWU.at<double>(1, 2) = -1.0;
+    opticalframe_to_NWU.at<double>(2, 1) = 1.0;
+    cout<<"opticalframe_to_NWU: "<<opticalframe_to_NWU<<endl;
+
+    cout<<"result_relative_T position before: "<<result_relative_T.at<double>(0, 3)<<", "
+                                        <<result_relative_T.at<double>(1, 3)<<", "
+                                        <<result_relative_T.at<double>(2, 3)<<", "<<endl;
+
+    //new_T = old_T * (opticalframe_to_NWU * result_relative_T);
+    new_T = old_T;
+    new_T.at<double>(0, 3) = old_T.at<double>(0, 3) + result_relative_T.at<double>(1, 3);
+
+    if(old_T.at<double>(1, 3) > 0)
+      new_T.at<double>(1, 3) = old_T.at<double>(1, 3) - result_relative_T.at<double>(2, 3);
+    else
+      new_T.at<double>(1, 3) = old_T.at<double>(1, 3) + result_relative_T.at<double>(2, 3);
+
+    new_T.at<double>(2, 3) = old_T.at<double>(2, 3) + result_relative_T.at<double>(0, 3);
+
+    cout<<"old T: "<<endl<<old_T<<endl;
+    cout<<"new T: "<<endl<<new_T<<endl;
+
+    ALL_T << old_T.at<double>(0, 3)<<","<<old_T.at<double>(1, 3)<<","<<old_T.at<double>(2, 3)<<","
+          <<result_relative_T.at<double>(0, 3)<<","<<result_relative_T.at<double>(1, 3)<<","<<result_relative_T.at<double>(2, 3)<<endl;
 
     cv::Mat new_R = new_T.colRange(0,3).rowRange(0,3);
     cv::Mat new_t = new_T.rowRange(0,3).col(3);
 
+    cout<<"old T:\n"<<old_T<<endl;
+    cout<<"result_relative_T:\n"<<result_relative_T<<endl;
     cout<<"new T:\n"<<new_T<<endl;
 
-    if (fitnesscore < 0.5) //TODO:move this into a config.
+    if (fitnesscore < 2.0) //TODO:move this into a config.
     {
         this->mpCv_helper->publishPose(new_R, new_t, 0);
         RT_mat_of_stereo_cam_output = new_T;

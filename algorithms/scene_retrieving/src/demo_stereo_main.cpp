@@ -31,21 +31,8 @@ int main(int argc,char** argv)
     
     cv::FileStorage fsSettings(Q_mat_path, cv::FileStorage::READ);
 
-
-    ///MERGE_ERROR: ???????
-/*<<<<<<< HEAD
-
-    cv::Mat Q_mat = cv::Mat::eye(4, 4, CV_8U);
-
-    cout<<"Q_mat 1"<<endl;
-
-    cout<<"Q_mat 2"<<endl;
-=======*/
     cv::Mat Q_mat;
     fsSettings["Q_mat"] >> Q_mat;
-        
-//>>>>>>> dev
-
 
     if (Q_mat.empty())
     {
@@ -96,10 +83,12 @@ int main(int argc,char** argv)
         }
         else
         {
-            float fitness_score = pSceneRetriever->retrieveSceneFromStereoImage(left_image, right_image, Q_mat, RT_mat, match_success);
+
+            int* loop_index;
+            float fitness_score = pSceneRetriever->retrieveSceneFromStereoImage(left_image, right_image, Q_mat, RT_mat, match_success, loop_index);
             cout<<"retrieveSceneFromStereoImage 2"<<endl;
 
-            if(fitness_score > 10)
+            if(fitness_score < -1.0)
             {
               continue;
             }

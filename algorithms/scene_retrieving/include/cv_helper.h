@@ -67,7 +67,7 @@ public:
         cout<<"cv_helper b: "<<b<<endl;
 
         this->PosePublisher = this->nh.advertise<visualization_msgs::Marker>("/pose_visualizer",10);
-        ros::Duration(1).sleep();
+        //ros::Duration(1).sleep();
 
     }
 
@@ -233,11 +233,7 @@ public:
     void image2KpAndDesp(cv::Mat& image, vector<cv::KeyPoint>& keypoints, cv::Mat& descriptors)
     {
 
-        cout<<"image2KpAndDesp 1"<<endl;
-        cv::Ptr<cv::ORB> orb = cv::ORB::create(1000);
-        cout<<"image2KpAndDesp 2"<<endl;
-
-        cout<<"image size: "<<image.size()<<endl;
+        cv::Ptr<cv::ORB> orb = cv::ORB::create();
 
         orb->detectAndCompute(image, cv::Mat(), keypoints, descriptors);
         cout<<"image2KpAndDesp size: "<<keypoints.size()<<", "<<descriptors.size()<<endl;
@@ -302,17 +298,14 @@ public:
     {
 
         //step 1, detect and compute kps and desp
-        cout<<"StereoImage2CamPoints 1"<<endl;
         cout<<"image_left_rect size: "<<image_left_rect.size()<<endl;
         this->image2KpAndDesp(image_left_rect, Keypoints_left, descriptors_left);
-        cout<<"StereoImage2CamPoints 2"<<endl;
         if(Keypoints_left.size()< 10)
             return false;
 
         //step 2, convert kps to pt2f
         vector<cv::Point2f> InputKeypoints;
         cv::KeyPoint::convert(Keypoints_left, InputKeypoints);
-        cout<<"StereoImage2CamPoints 3"<<endl;
         //step 3, conduct LK flow
         std::vector<unsigned char> PyrLKResults;
         std::vector<float> err;
@@ -325,7 +318,6 @@ public:
                                  err
         );
 
-        cout<<"StereoImage2CamPoints 4"<<endl;
         //step 4, eliminate good points and only keep matched ones
         std::vector<cv::Point2f> matched_points;
         std::vector<float> disparity_of_points;
@@ -344,7 +336,6 @@ public:
 
         //step 5, given pts2f, disps, R and t, compute mps
         Camera_pts_left = this->image2cam(matched_points, disparity_of_points);
-        cout<<"StereoImage2CamPoints 5"<<endl;
         cout<<"KeyPoint size: "<<Keypoints_left.size()<<endl;
         return true;
     }
@@ -374,13 +365,9 @@ public:
             mark.color.b = 0.0;
         }
 
-        cout<<"publish pose 1"<<endl;
-
         mark.pose.position.x = t.at<double> (0,0);
         mark.pose.position.y = t.at<double> (1,0);
         mark.pose.position.z = t.at<double> (2,0);
-
-        cout<<"publish pose 2"<<endl;
 
 //        mark.pose.orientation.x = quat.x();
 //        mark.pose.orientation.y = quat.y();
@@ -417,20 +404,14 @@ public:
                       vector<cv::KeyPoint>& kps2, cv::Mat& desps2,
                       vector<cv::DMatch>& result_matches)
     {
-
-        cout<<"match2images 1"<<endl;
-
         //step 1, match raw desps
         std::vector<cv::DMatch> matches;
 
         //NOTE for ORB kps and desps
         cv::FlannBasedMatcher matcher = cv::FlannBasedMatcher(cv::makePtr<cv::flann::LshIndexParams>(12,20,2));
-
         matcher.match(desps1, desps2, matches);
 
-        cout<<"desps1 shape: "<<desps1.size()<<endl;
-        cout<<"desps2 shape: "<<desps2.size()<<endl;
-        cout<<"match2Images 2: matches.size() "<<matches.size()<<endl;
+        cout<<"match2Images: matches.size() "<<matches.size()<<endl;
 
         //step 2, find first bunch of good matches using desp distance
         double max_dist = 0;
@@ -446,31 +427,19 @@ public:
 
         std::vector< cv::DMatch > good_matches;
 
-//        for( int i = 0; i < matches.size(); i++ )
-//        {
-//            if( matches[i].distance <= 2*min_dist && matches[i].distance< 20) // 3.0 too large;2.0 too large.
-//            {
-//                good_matches.push_back( matches[i]);
-//            }
-//        }
-
         for( int i = 0; i < matches.size(); i++ )
         {
-            if( matches[i].distance <= 3*min_dist && matches[i].distance< 20) // 3.0 too large;2.0 too large.
+            if( matches[i].distance <= 3*min_dist && matches[i].distance < 25) // 3.0 too large;2.0 too large.
             {
                 good_matches.push_back( matches[i]);
             }
         }
 
+        cout<<"min_dist: "<<min_dist<<endl;
         cout<<"match2Images: good_matches.size() "<<good_matches.size()<<endl;
 
-        if (good_matches.size()<8)
+        if (good_matches.size()<20)
             return false;
-
-        //for debug
-//        result_matches = good_matches;
-//        return true;
-        //--------------------------------------------------------------------------------
 
         vector<cv::Point2f> good_kps_old, good_kps_cur;
         for( size_t i = 0; i < good_matches.size(); i++ )
@@ -485,9 +454,6 @@ public:
         //step 3, use H to find second bunch of good matches
         cv::Mat isOutlierMask;
         cv::Mat fundamental_matrix = cv::findFundamentalMat(good_kps_old, good_kps_cur, cv::FM_RANSAC, 2, 0.995, isOutlierMask);
-
-        cout<<"isOutlierMask shape: "<<isOutlierMask.size()<<endl;
-        cout<<"isOutlierMask depth: "<<isOutlierMask.depth()<<endl;
 
         std::vector<cv::DMatch> final_good_matches;
         for(int i = 0; i<good_matches.size(); i++)
@@ -676,7 +642,7 @@ public:
     // a wrapper for pcl::GeneralizedIterativeClosestPoint to return the transformation matrix between a input point cloud and a
     // target point cloud
     // input points cloud size should be greater than 20
-    float GeneralICP(vector<cv::Point3f>& input_cloud, vector<cv::Point3f>& target_cloud, Eigen::Matrix4f& result, int num_iter = 50, double transformationEpsilon = 1e-8)
+    float GeneralICP(vector<cv::Point3f>& input_cloud, vector<cv::Point3f>& target_cloud, Eigen::Matrix4f& result, int num_iter = 20, double transformationEpsilon = 1e-8)
     {
 
         cout<<"cv helper::GeneralICP points size: "<<input_cloud.size()<<", "<<target_cloud.size()<<endl;
@@ -697,23 +663,41 @@ public:
         pcl::removeNaNFromPointCloud(*src, *src, indices_1);
         pcl::removeNaNFromPointCloud(*tgt, *tgt, indices_2);
 
-        for(auto& pt : src->points)
-        {
-          if (pt.x ==0 || pt.y ==0 || pt.z ==0 || !pcl::isFinite(pt) ||
-              abs(pt.x) > 1e6 || abs(pt.y) > 1e6 || abs(pt.z) > 1e6)
-          {
-            return 100;
-          }
-        }
+//        for(auto& pt : src->points)
+//        {
+//          if (pt.x ==0 || pt.y ==0 || pt.z ==0 || !pcl::isFinite(pt) ||
+//              abs(pt.x) > 1e6 || abs(pt.y) > 1e6 || abs(pt.z) > 1e6)
+//          {
+//            return -1;
+//          }
+//        }
+//
+//        for(auto& pt : tgt->points)
+//        {
+//          if ( pt.x ==0 || pt.y ==0 ||pt.z ==0 || !pcl::isFinite(pt) ||
+//               abs(pt.x) > 1e6 || abs(pt.y) > 1e6 || abs(pt.z) > 1e6)
+//          {
+//            return -1;
+//          }
+//        }
 
-        for(auto& pt : tgt->points)
+      for(auto& pt : src->points)
+      {
+        if (!pcl::isFinite(pt) ||
+            abs(pt.x) > 1e6 || abs(pt.y) > 1e6 || abs(pt.z) > 1e6)
         {
-          if ( pt.x ==0 || pt.y ==0 ||pt.z ==0 || !pcl::isFinite(pt) ||
-               abs(pt.x) > 1e6 || abs(pt.y) > 1e6 || abs(pt.z) > 1e6)
-          {
-            return 100;
-          }
+          return -1;
         }
+      }
+
+      for(auto& pt : tgt->points)
+      {
+        if (!pcl::isFinite(pt) ||
+             abs(pt.x) > 1e6 || abs(pt.y) > 1e6 || abs(pt.z) > 1e6)
+        {
+          return -1;
+        }
+      }
 
         // define output point cloud
         pcl::PointCloud<PointT> output;
@@ -731,6 +715,7 @@ public:
         // expect fitness score is less than a certain value
         cout<<"GeneralICP::General ICP fitness score: "<<reg.getFitnessScore()<<endl;
 
+        //Tts : transformation from source to target
         Eigen::Matrix4f transformation = reg.getFinalTransformation();
 
         cout<<"GeneralICP::transformation matrix: \n"<<transformation<<endl;

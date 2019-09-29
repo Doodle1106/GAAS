@@ -10,33 +10,26 @@
 
 #include "DBoW3.h" // defines OrbVocabulary and OrbDatabase
 
+#include <Eigen/Core>
+
 // OpenCV
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
-//#include <opencv2/xfeatures2d.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include "opencv2/calib3d.hpp"
-
 
 #include "LoopClosingManager.h"
 #include "scene_frame_properties.h"
 #include "serialization.h"
 
-#include <Eigen/Core>
-
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
 
-//#include <pcl/point_types.h>
-//#include <pcl/point_cloud.h>loopclosure_result
-//#include <pcl/common/transforms.h>
-//#include <pcl/registration/gicp.h>
-//#include <pcl/conversions.h>
-//#include <pcl/PCLPointCloud2.h>
-//#include <pcl/io/pcd_io.h>
 #include "cv_helper.h"
 
+#include <iostream>
+#include <fstream>
 
 using namespace std;
 
@@ -363,11 +356,13 @@ public:
     SceneRetriever(const string& voc);
     
     //SceneRetriever(Scene& original_scene_input);
-    SceneRetriever(const string&voc,const std::string& scene_file);
+    SceneRetriever(const string& voc,const std::string& scene_file);
     
     float retrieveSceneWithScaleFromMonoImage(cv::Mat image_in_rect, cv::Mat& cameraMatrix, cv::Mat& RT_mat_of_mono_cam_output, bool& match_success,int* pMatchedIndexID_output = nullptr);
+
     float retrieveSceneFromStereoImage(cv::Mat& image_left_rect, cv::Mat& image_right_rect,
-                                                       cv::Mat& Q_mat, cv::Mat& RT_mat_of_stereo_cam_output, bool& match_success,int* pMatchedIndexID_output = nullptr);
+            cv::Mat& Q_mat, cv::Mat& RT_mat_of_stereo_cam_output, bool& match_success,int* pMatchedIndexID_output = nullptr);
+
     inline int addFrameToScene(const std::vector<cv::KeyPoint>& points2d_in, const std::vector<cv::Point3d>points3d_in,const cv::Mat& point_desp_in, const cv::Mat R, const cv::Mat t)
     {
         if(!this->ploop_closing_manager_of_scene )
@@ -456,5 +451,7 @@ private:
 
     vector<string> mVecLeftImagePath;
     vector<string> mVecRightImagePath;
+
+    ofstream OLD_T, RELATIVE_T, ALL_T;
 };
 #endif

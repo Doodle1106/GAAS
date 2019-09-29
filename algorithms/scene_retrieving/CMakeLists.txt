@@ -28,11 +28,15 @@ OPTION(BUILD_UTILS	"Set to OFF to not build utils" ON)
 OPTION(USE_CONTRIB 	"Set to ON if contrib are installed" OFF)
 OPTION(BUILD_SHARED_LIBS 	"Set to OFF to build static libraries" ON)
 
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+
 # ----------------------------------------------------------------------------
 #   Find Dependencies
 # ----------------------------------------------------------------------------
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake-modules)
-find_package(OpenCV 3.3.1 REQUIRED) # same with ros.
+find_package(OpenCV 3.4.5 REQUIRED) # same with ros.
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
                                 cv_bridge
@@ -41,30 +45,17 @@ find_package(catkin REQUIRED COMPONENTS
                                 sensor_msgs
 				geometry_msgs
                                 roseus
-#                                nav_msgs
-#                                std_msgs
-#                                octomap_msgs
-#                                octomap_rviz_plugins
                                 visualization_msgs
-#                               tf
 				)
 
 
-#find_package(PCL REQUIRED PATH ../../software/SLAM/ygz_slam_ros/Thirdparty/PCL)
 find_package(PCL REQUIRED)
-
 
 find_package (DBoW3 REQUIRED PATH ../loop_closing/DBow3/)
 find_package (Glog REQUIRED)
 IF(USE_CONTRIB)
 add_definitions(-DUSE_CONTRIB)
 ENDIF()
-#if(NOT OpenCV_VERSION VERSION_LESS "3.0")
-#    ADD_DEFINITIONS(-DOPENCV_VERSION_3)
-#    SET(OPENCV_VERSION_3 ON)
-#ELSE()
-#    SET(OPENCV_VERSION_3 OFF)
-#ENDIF()
 
 
 include_directories(${OpenCV_INCLUDE_DIRS}
@@ -226,7 +217,6 @@ SET(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} ${EXTRA_EXE_LI
 
 ADD_SUBDIRECTORY(src)
 
-
 #target_link_libraries(demo ${PROJECT_NAME} ${OpenCV_LIBS})
 #  file(COPY demo/images DESTINATION ${CMAKE_BINARY_DIR}/)
 
@@ -259,6 +249,9 @@ MESSAGE( STATUS "USE_CONTRIB= ${USE_CONTRIB}" )
 
 MESSAGE( STATUS "OpenCV_LIB_DIR=${OpenCV_LIB_DIR}")
 MESSAGE( STATUS "CMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}")
+
+
+
 
 
 
